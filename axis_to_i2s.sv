@@ -42,14 +42,15 @@ module axi2_to_i2s (
   logic [ 5:0] raddr_q ;
   logic        rvalid_q;
 
-
-// Controlling register reader.
+// Controlling registers reader
   assign s_axi_ctrl_rresp = '0;
   always_ff @(posedge s_axi_ctrl_aclk) begin
     if(~s_axi_ctrl_aresetn) begin
       rvalid_q           <= '0;
       s_axi_ctrl_rvalid  <= '0;
       s_axi_ctrl_arready <= '1;
+      s_axi_ctrl_rdata <= 'x;
+      raddr_q <= 'x;
     end else begin
       if(rvalid_q) begin
         s_axi_ctrl_rvalid <= '1;
@@ -71,6 +72,7 @@ module axi2_to_i2s (
       end
     end
   end
+
   always_comb begin
     case (raddr_q[2:0])
       /*3'd0*/ default: begin
@@ -114,43 +116,47 @@ module axi2_to_i2s (
   assign s_axi_ctrl_bresp = '0;
   always_ff@(posedge s_axi_ctrl_aclk) begin
     if(~s_axi_ctrl_aresetn) begin
-      w_fsm_q  <= S_WAIT_ADDR;
-      wvalid_q <= '0;
+      w_fsm_q            <= S_WAIT_ADDR;
+      wvalid_q           <= '0;
       s_axi_ctrl_awready <= '1;
-      s_axi_ctrl_wready <= '0;
-      s_axi_ctrl_bvalid <= '0;
+      s_axi_ctrl_wready  <= '0;
+      s_axi_ctrl_bvalid  <= '0;
     end else begin
       case(w_fsm_q)
         /*S_WAIT_ADDR*/ default: begin
           if(s_axi_ctrl_awvalid) begin
-            w_fsm_q <= S_WAIT_DATA;
-            waddr_q <= s_axi_ctrl_awaddr[7:2];
+            w_fsm_q            <= S_WAIT_DATA;
+            waddr_q            <= s_axi_ctrl_awaddr[7:2];
             s_axi_ctrl_awready <= '0;
-            s_axi_ctrl_wready <= '1;
+            s_axi_ctrl_wready  <= '1;
           end
         end
         S_WAIT_DATA : begin
           wdata_q <= s_axi_ctrl_wdata;
           if(s_axi_ctrl_wvalid) begin
-            w_fsm_q  <= S_WAIT_WRITE;
-            wvalid_q <= '1;
+            w_fsm_q           <= S_WAIT_WRITE;
+            wvalid_q          <= '1;
             s_axi_ctrl_wready <= '0;
           end
         end
         S_WAIT_WRITE : begin
-          wvalid_q <= '0;
-          w_fsm_q  <= S_WAIT_RESP;
+          wvalid_q          <= '0;
+          w_fsm_q           <= S_WAIT_RESP;
           s_axi_ctrl_bvalid <= '1;
         end
         S_WAIT_RESP : begin
           if(s_axi_ctrl_bready) begin
-            w_fsm_q <= S_WAIT_ADDR;
-            s_axi_ctrl_bvalid <= '0;
+            w_fsm_q            <= S_WAIT_ADDR;
+            s_axi_ctrl_bvalid  <= '0;
             s_axi_ctrl_awready <= '1;
           end
         end
       endcase
     end
   end
+
+
+// I2S Generation
+  logic a;
 
 endmodule
