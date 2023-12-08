@@ -157,6 +157,5 @@ module axi2_to_i2s (
 
 
 // I2S Generation
-  logic a;
 
 endmodule
