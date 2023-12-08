@@ -18,7 +18,7 @@ module axi2_to_i2s (
   output reg  [31:0] s_axi_ctrl_rdata  ,
   output wire [ 1:0] s_axi_ctrl_rresp  ,
   output wire        irq               ,
-  input  wire        aud_mclk          ,
+  input  wire        aud_mclk          , // 22.5792Mhz for 44.1khz || 24.576mhz for 48khz
   input  wire        aud_mrst          ,
   output wire        lrclk_out         ,
   output wire        sclk_out          ,
@@ -31,9 +31,10 @@ module axi2_to_i2s (
   output wire        s_axis_aud_tready
 );
 
+assign irq = '0; // NO USED
+
 // Controlling registers
   logic [31:0] reg_ver, reg_conf, reg_ctrl, reg_validate, reg_int_ctrl, reg_int_status, reg_timing_ctrl, reg_channel_ctrl;
-  logic        we_ver, we_conf, we_ctrl, we_validate, we_int_ctrl, we_int_status, we_timing_ctrl, we_channel_ctrl;
   logic [31:0] wdata_q ;
   logic [ 5:0] waddr_q ;
   logic        wvalid_q;
@@ -114,13 +115,15 @@ module axi2_to_i2s (
   localparam w_fsm_t S_WAIT_RESP  = 2'd3;
 
   assign s_axi_ctrl_bresp = '0;
-  always_ff@(posedge s_axi_ctrl_aclk) begin
+  always_ff @(posedge s_axi_ctrl_aclk) begin
     if(~s_axi_ctrl_aresetn) begin
       w_fsm_q            <= S_WAIT_ADDR;
       wvalid_q           <= '0;
       s_axi_ctrl_awready <= '1;
       s_axi_ctrl_wready  <= '0;
       s_axi_ctrl_bvalid  <= '0;
+      waddr_q            <= 'x;
+      wdata_q            <= 'x;
     end else begin
       case(w_fsm_q)
         /*S_WAIT_ADDR*/ default: begin
@@ -155,7 +158,98 @@ module axi2_to_i2s (
     end
   end
 
+  always_ff @(posedge s_axi_ctrl_aclk) begin
+    if(~s_axi_ctrl_aresetn) begin
+      reg_ver <= '0;
+      reg_conf <= '0;
+      reg_ctrl <= 32'd1;
+      reg_validate <= '0;
+      reg_int_ctrl <= '0;
+      reg_int_status <= '0;
+      reg_timing_ctrl <= '0;
+      reg_channel_ctrl <= '0;
+    end else begin
+      if(wvalid_q) begin
+        if(waddr_q == 5'd2) begin // CTRL
+          reg_ctrl[2:0] <= wdata_q; // ENOUGH
+        end
+      end
+    end
+  end
 
+// FIFO DATA EXTRACION
+// ONLY FETCH CHANNEL 0-1 DATA
+// AND TWO DATA FORM ONE VALID INPUT FOR I2S GENERATION
+logic[31:0] formed_data_q;
+logic formed_half_q;
+logic formed_valid_q;
+logic formed_ready_q;
+wire formed_valid = !formed_ready_q || formed_valid_q;
+logic formed_ready;
+assign s_axis_aud_tready = !formed_valid_q || formed_ready;
+always_ff @(posedge s_axis_aud_aclk) begin
+  if(s_axis_aud_tvalid && s_axis_aud_tready) begin
+    formed_data_q[31:16] <= formed_data_q[15:0];
+    formed_data_q[15:0]  <= s_axis_aud_tdata[28] ? s_axis_aud_tdata[27:12] : '0;
+  end
+end
+always_ff @(posedge s_axis_aud_aclk) begin
+  if(~s_axis_aud_aresetn) begin
+    formed_valid_q <= '0;
+    formed_half_q  <= '0;
+  end else begin
+    if(s_axis_aud_tvalid && s_axis_aud_tready) begin
+      formed_valid_q <= formed_half_q;
+      formed_half_q  <= ~formed_half_q;
+    end
+  end
+end
+// SKID BUF
+reg[31:0] formed_data_skid_q;
+wire [31:0] formed_data = formed_ready_q ? formed_data_q : formed_data_skid_q;
+always_ff @(posedge s_axis_aud_aclk) begin
+  if(~s_axis_aud_aresetn) begin
+    formed_ready_q <= '1;
+  end else begin
+    formed_ready_q <= (!formed_valid_q && formed_ready_q) || formed_ready;
+  end
+end
+always_ff @(posedge s_axis_aud_aclk) begin
+  if(~s_axis_aud_aresetn) begin
+    formed_data_skid_q <= formed_data_q;
+  end
+end
+
+// ASYNC - FIFO from s_axis_aud_aclk to aud_mclk
+wire i2s_dat_valid, i2s_dat_ready;
+wire [31:0] i2s_dat;
+cdc_fifo_gray # (
+    .WIDTH(32),
+    .LOG_DEPTH(3),
+    .SYNC_STAGES(2)
+  )
+  cdc_fifo_gray_inst (
+    .src_rst_ni(s_axis_aud_aresetn),
+    .src_clk_i(s_axis_aud_aclk),
+    .src_data_i(formed_data),
+    .src_valid_i(formed_valid),
+    .src_ready_o(formed_ready),
+
+    .dst_rst_ni(~aud_mrst),
+    .dst_clk_i(aud_mclk),
+    .dst_data_o(i2s_dat),
+    .dst_valid_o(i2s_dat_valid),
+    .dst_ready_i(i2s_dat_ready)
+  );
 // I2S Generation
+  i2s_gen  i2s_gen_inst (
+    .aud_clk_i(aud_mclk),
+    .aud_rst_i(aud_mrst),
+    .sclk_o(sclk_out),
+    .wclk_o(lrclk_out),
+    .sdata_o(sdata_0_out),
+    .audio_data_i(i2s_dat),
+    .audio_data_ready_o(i2s_dat_ready)
+  );
 
 endmodule
