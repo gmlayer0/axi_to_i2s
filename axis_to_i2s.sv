@@ -1,20 +1,20 @@
 module axi2_to_i2s (
   input  wire        s_axi_ctrl_aclk   ,
   input  wire        s_axi_ctrl_aresetn,
-  input  wire        s_axi_ctrl_awvalid,
-  output reg         s_axi_ctrl_awready,
-  input  wire [ 7:0] s_axi_ctrl_awaddr ,
-  input  wire        s_axi_ctrl_arvalid,
-  output reg         s_axi_ctrl_arready,
-  input  wire [ 7:0] s_axi_ctrl_araddr ,
-  input  wire        s_axi_ctrl_wvalid ,
-  output reg         s_axi_ctrl_wready ,
+  (*mark_debug="true"*) input  wire        s_axi_ctrl_awvalid,
+  (*mark_debug="true"*) output reg         s_axi_ctrl_awready,
+  (*mark_debug="true"*) input  wire [ 7:0] s_axi_ctrl_awaddr ,
+  (*mark_debug="true"*) input  wire        s_axi_ctrl_arvalid,
+  (*mark_debug="true"*) output reg         s_axi_ctrl_arready,
+  (*mark_debug="true"*) input  wire [ 7:0] s_axi_ctrl_araddr ,
+  (*mark_debug="true"*) input  wire        s_axi_ctrl_wvalid ,
+  (*mark_debug="true"*) output reg         s_axi_ctrl_wready ,
   input  wire [31:0] s_axi_ctrl_wdata  ,
-  output reg         s_axi_ctrl_bvalid ,
-  input  wire        s_axi_ctrl_bready ,
+  (*mark_debug="true"*) output reg         s_axi_ctrl_bvalid ,
+  (*mark_debug="true"*) input  wire        s_axi_ctrl_bready ,
   output wire [ 1:0] s_axi_ctrl_bresp  ,
-  output reg         s_axi_ctrl_rvalid ,
-  input  wire        s_axi_ctrl_rready ,
+  (*mark_debug="true"*) output reg         s_axi_ctrl_rvalid ,
+  (*mark_debug="true"*) input  wire        s_axi_ctrl_rready ,
   output reg  [31:0] s_axi_ctrl_rdata  ,
   output wire [ 1:0] s_axi_ctrl_rresp  ,
   output wire        irq               ,
@@ -160,8 +160,8 @@ assign irq = '0; // NO USED
 
   always_ff @(posedge s_axi_ctrl_aclk) begin
     if(~s_axi_ctrl_aresetn) begin
-      reg_ver <= '0;
-      reg_conf <= '0;
+      reg_ver <= {16'd2, 16'd0};
+      reg_conf <= {15'd0, 1'd0, 4'd0, 4'd2, 7'b0, 1'b1};
       reg_ctrl <= 32'd1;
       reg_validate <= '0;
       reg_int_ctrl <= '0;
@@ -184,13 +184,12 @@ logic[31:0] formed_data_q;
 logic formed_half_q;
 logic formed_valid_q;
 logic formed_ready_q;
-wire formed_valid = !formed_ready_q || formed_valid_q;
-logic formed_ready;
-assign s_axis_aud_tready = !formed_valid_q || formed_ready;
+(*mark_debug="true"*) wire formed_valid = !formed_ready_q || formed_valid_q;
+assign s_axis_aud_tready = !formed_valid_q || formed_ready_q;
 always_ff @(posedge s_axis_aud_aclk) begin
   if(s_axis_aud_tvalid && s_axis_aud_tready) begin
     formed_data_q[31:16] <= formed_data_q[15:0];
-    formed_data_q[15:0]  <= s_axis_aud_tdata[28] ? s_axis_aud_tdata[27:12] : '0;
+    formed_data_q[15:0]  <= s_axis_aud_tdata[15:0];
   end
 end
 always_ff @(posedge s_axis_aud_aclk) begin
@@ -205,8 +204,9 @@ always_ff @(posedge s_axis_aud_aclk) begin
   end
 end
 // SKID BUF
-reg[31:0] formed_data_skid_q;
-wire [31:0] formed_data = formed_ready_q ? formed_data_q : formed_data_skid_q;
+(*mark_debug="true"*) wire formed_ready;
+reg  [31:0] formed_data_skid_q;
+(*mark_debug="true"*) wire [31:0] formed_data = formed_ready_q ? formed_data_q : formed_data_skid_q;
 always_ff @(posedge s_axis_aud_aclk) begin
   if(~s_axis_aud_aresetn) begin
     formed_ready_q <= '1;
@@ -215,14 +215,14 @@ always_ff @(posedge s_axis_aud_aclk) begin
   end
 end
 always_ff @(posedge s_axis_aud_aclk) begin
-  if(~s_axis_aud_aresetn) begin
+  if(formed_ready_q) begin
     formed_data_skid_q <= formed_data_q;
   end
 end
 
 // ASYNC - FIFO from s_axis_aud_aclk to aud_mclk
-wire i2s_dat_valid, i2s_dat_ready;
-wire [31:0] i2s_dat;
+(*mark_debug="true"*) wire i2s_dat_valid, i2s_dat_ready;
+(*mark_debug="true"*) wire [31:0] i2s_dat;
 cdc_fifo_gray # (
     .WIDTH(32),
     .LOG_DEPTH(3),
@@ -249,6 +249,7 @@ cdc_fifo_gray # (
     .wclk_o(lrclk_out),
     .sdata_o(sdata_0_out),
     .audio_data_i(i2s_dat),
+    .audio_data_valid_i(i2s_dat_valid),
     .audio_data_ready_o(i2s_dat_ready)
   );
 

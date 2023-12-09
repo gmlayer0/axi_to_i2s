@@ -7,6 +7,7 @@ module i2s_gen(
     output reg         sdata_o ,
     
     input  wire  [31:0]audio_data_i,
+    input  wire        audio_data_valid_i,
     output wire        audio_data_ready_o
 );
 
@@ -19,10 +20,10 @@ module i2s_gen(
             clk_divider <= clk_divider + 1;
         end
     end
-    wire sck_negedge = &clk_divider[3:0];
-    wire wck_negedge = &clk_divider[8:0];
-    wire sdata_d = audio_data_q[clk_divider[8:4]];
-    reg  sdata_q;
+    (*mark_debug="true"*) wire sck_negedge = &clk_divider[3:0];
+    (*mark_debug="true"*) wire wck_negedge = &clk_divider[8:0];
+    wire sdata_d = audio_data_q[5'd31 - clk_divider[8:4]];
+    (*mark_debug="true"*) reg  sdata_q;
     always_ff @(posedge aud_clk_i) begin
         if(sck_negedge) begin
             sdata_q <= sdata_d;
@@ -45,7 +46,7 @@ module i2s_gen(
     assign audio_data_ready_o = wck_negedge || aud_rst_i;
     always_ff @(posedge aud_clk_i) begin
         if(audio_data_ready_o) begin
-            audio_data_q <= audio_data_i;
+            audio_data_q <= audio_data_valid_i ? audio_data_i : '0;
         end
     end
 
