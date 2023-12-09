@@ -3,7 +3,7 @@
 module stolen_audio_formatter #(
 	parameter C_FAMILY = "artix7",
 
-	parameter integer C_INCLUDE_S2MM = 1 , //0,1
+	parameter integer C_INCLUDE_S2MM = 0 , //0,1
 	parameter integer C_MAX_NUM_CHANNELS_S2MM = 2, //2,4,6,8
 	parameter integer C_PACKING_MODE_S2MM = 0, // 0: Interleaved, 1: Non-interleaved
 	parameter integer C_S2MM_DATAFORMAT = 1, // 0: AES -> AES
@@ -136,19 +136,7 @@ wire [1:0] s_axi_lite_bresp_mm2s;
 wire s_axi_lite_bready_mm2s;
 
 generate 
-if((C_INCLUDE_S2MM == 1) && (C_INCLUDE_MM2S == 0)) begin : ONLY_S2MM
-
-assign s_axi_lite_awvalid_s2mm = s_axi_lite_awvalid;
-assign s_axi_lite_wvalid_s2mm  = s_axi_lite_wvalid;
-assign s_axi_lite_bvalid  = s_axi_lite_bvalid_s2mm;
-assign s_axi_lite_bresp  = s_axi_lite_bresp_s2mm;
-
-assign s_axi_lite_awready = s_axi_lite_awready_s2mm;
-assign s_axi_lite_wready  = s_axi_lite_wready_s2mm;
-assign s_axi_lite_bready_s2mm  = s_axi_lite_bready;
-
-end
-else if((C_INCLUDE_S2MM == 0) && (C_INCLUDE_MM2S == 1)) begin : ONLY_MM2S
+if((C_INCLUDE_S2MM == 0) && (C_INCLUDE_MM2S == 1)) begin : ONLY_MM2S
 
 assign s_axi_lite_awvalid_mm2s = s_axi_lite_awvalid;
 assign s_axi_lite_wvalid_mm2s  = s_axi_lite_wvalid;
@@ -158,50 +146,6 @@ assign s_axi_lite_bresp   = s_axi_lite_bresp_mm2s;
 assign s_axi_lite_awready = s_axi_lite_awready_mm2s;
 assign s_axi_lite_wready  = s_axi_lite_wready_mm2s;
 assign s_axi_lite_bready_mm2s  = s_axi_lite_bready;
-
-end
-else begin : BOTH_ENABLED
-
-reg transaction_s2mm;
-reg transaction_mm2s;
-
-always@(posedge s_axi_lite_aclk)
-begin
-	if(!s_axi_lite_aresetn) begin
-		transaction_s2mm <= 1'b0;
-	end
-	else if ((s_axi_lite_awaddr[8] == 1'b0) && s_axi_lite_awvalid && (!transaction_mm2s) ) begin
-		transaction_s2mm <= 1'b1;
-	end
-	else if (s_axi_lite_bvalid && s_axi_lite_bready) begin
-		transaction_s2mm <= 1'b0;
-	end
-end
-always@(posedge s_axi_lite_aclk)
-begin
-	if(!s_axi_lite_aresetn) begin
-		transaction_mm2s <= 1'b0;
-	end
-	else if ((s_axi_lite_awaddr[8] == 1'b1) && s_axi_lite_awvalid && (!transaction_s2mm) ) begin
-		transaction_mm2s <= 1'b1;
-	end
-	else if (s_axi_lite_bvalid && s_axi_lite_bready) begin
-		transaction_mm2s <= 1'b0;
-	end
-end
-
-assign s_axi_lite_awvalid_mm2s = (transaction_mm2s && s_axi_lite_awaddr[8]) ? s_axi_lite_awvalid : 1'b0;
-assign s_axi_lite_wvalid_mm2s  = (transaction_mm2s) ? s_axi_lite_wvalid : 1'b0;
-assign s_axi_lite_bready_mm2s = (transaction_mm2s) ? s_axi_lite_bready : 1'b0;
-
-assign s_axi_lite_awvalid_s2mm = (transaction_s2mm && (s_axi_lite_awaddr[8] == 'b0)) ? s_axi_lite_awvalid : 1'b0;
-assign s_axi_lite_wvalid_s2mm  = (transaction_s2mm) ? s_axi_lite_wvalid : 1'b0;
-assign s_axi_lite_bready_s2mm = (transaction_s2mm) ? s_axi_lite_bready : 1'b0;
-
-assign s_axi_lite_awready =(transaction_mm2s && s_axi_lite_awready_mm2s) || (transaction_s2mm && s_axi_lite_awready_s2mm);
-assign s_axi_lite_wready =(transaction_mm2s && s_axi_lite_wready_mm2s) || (transaction_s2mm && s_axi_lite_wready_s2mm);
-assign s_axi_lite_bvalid  = (transaction_mm2s && s_axi_lite_bvalid_mm2s) || (transaction_s2mm && s_axi_lite_bvalid_s2mm);
-assign s_axi_lite_bresp = transaction_s2mm ? s_axi_lite_bresp_s2mm : (transaction_mm2s ? s_axi_lite_bresp_mm2s : 'd0);
 
 end
 endgenerate
@@ -368,95 +312,7 @@ begin
     end
 end
 
-generate 
-if(C_INCLUDE_S2MM) begin: S2MM_INCLUDED
-wire s2mm_lite_resetn_sync;
-
-   stolen_cdc_async_rst #(
-       .DEST_SYNC_FF(2),
-       .INIT_SYNC_FF(0),
-       .RST_ACTIVE_HIGH(0)
-    )
-    stolen_cdc_async_s2mm_rst_inst (
-       .dest_arst(s2mm_lite_resetn_sync),
-       .dest_clk(s_axis_s2mm_aclk),
-       .src_arst(s_axi_lite_aresetn)
-    );
-  
-
-audio_formatter_v1_0_9_s2mm_top #(
- .C_FAMILY(C_FAMILY),
- .C_MAX_NUM_CHANNELS_S2MM(C_MAX_NUM_CHANNELS_S2MM),
- .C_PACKING_MODE_S2MM(C_PACKING_MODE_S2MM),
- .C_S2MM_DATAFORMAT(C_S2MM_DATAFORMAT),
- .C_S2MM_ADDR_WIDTH(C_S2MM_ADDR_WIDTH),
- .C_S2MM_ASYNC_CLOCK(C_S2MM_ASYNC_CLOCK)
-) s2mm_top_1 
-(
-	.s_axi_lite_aclk(s_axi_lite_aclk),
-	.s_axi_lite_aresetn(s_axi_lite_aresetn),
-
-	.s_axi_lite_awvalid(s_axi_lite_awvalid_s2mm), 
-	.s_axi_lite_awready(s_axi_lite_awready_s2mm), 
-	.s_axi_lite_awaddr (s_axi_lite_awaddr ), 
-
-	.s_axi_lite_wvalid (s_axi_lite_wvalid_s2mm ),
-	.s_axi_lite_wready (s_axi_lite_wready_s2mm ),
-	.s_axi_lite_wdata  (s_axi_lite_wdata  ),
-	    
-	.s_axi_lite_bresp  (s_axi_lite_bresp_s2mm  ),
-	.s_axi_lite_bvalid (s_axi_lite_bvalid_s2mm ),
-	.s_axi_lite_bready (s_axi_lite_bready_s2mm ),
-	    
-/*	.s_axi_lite_arvalid(s_axi_lite_arvalid),
-	.s_axi_lite_arready(s_axi_lite_arready),
-	.s_axi_lite_araddr (s_axi_lite_araddr ),
-	    
-	.s_axi_lite_rvalid (s_axi_lite_rvalid ),
-	.s_axi_lite_rready (s_axi_lite_rready ),
-	.s_axi_lite_rdata  (s_axi_lite_rdata  ),
-	    
-	.s_axi_lite_rresp  (s_axi_lite_rresp  ),*/
-
-	.s_axi_lite_araddr (rReadAddr[7:0]    ),
-	.s_axi_lite_rdata  (read_data_s2mm    ),
-	.s_axi_lite_rNOK   (NOK_s2mm          ),
-	.read_trans	   (s2mm_read_trans),
-
-	.s_axis_s2mm_aclk(s_axis_s2mm_aclk),
-	.s_axis_s2mm_aresetn(s_axis_s2mm_aresetn && s2mm_lite_resetn_sync),
-	.Irq_s2mm(irq_s2mm),
-                         
-	.s_axis_s2mm_tvalid(s_axis_s2mm_tvalid),
-	.s_axis_s2mm_tready(s_axis_s2mm_tready),
-	.s_axis_s2mm_tdata(s_axis_s2mm_tdata),
-	.s_axis_s2mm_tid(s_axis_s2mm_tid),
-
-        .m_axi_s2mm_awaddr(m_axi_s2mm_awaddr),
-         		                
-       .m_axi_s2mm_awlen(m_axi_s2mm_awlen),
-       .m_axi_s2mm_awsize(m_axi_s2mm_awsize),
-        .m_axi_s2mm_awburst(m_axi_s2mm_awburst),
-        .m_axi_s2mm_awprot(m_axi_s2mm_awprot),
-        .m_axi_s2mm_awcache(m_axi_s2mm_awcache),
-        .m_axi_s2mm_awuser(m_axi_s2mm_awuser),
-        .m_axi_s2mm_awvalid(m_axi_s2mm_awvalid),
-        .m_axi_s2mm_awready(m_axi_s2mm_awready),
-                               
-        .m_axi_s2mm_wdata(m_axi_s2mm_wdata),
-        .m_axi_s2mm_wstrb(m_axi_s2mm_wstrb),
-                               
-        .m_axi_s2mm_wlast(m_axi_s2mm_wlast),
-        .m_axi_s2mm_wvalid(m_axi_s2mm_wvalid),
-        .m_axi_s2mm_wready(m_axi_s2mm_wready),
-
-        .m_axi_s2mm_bresp(m_axi_s2mm_bresp),
-        .m_axi_s2mm_bvalid(m_axi_s2mm_bvalid),
-        .m_axi_s2mm_bready(m_axi_s2mm_bready)
-);
-end
-else begin: S2MM_NOT_INCLUDED
-
+// S2MM_NOT_INCLUDED
 assign s_axi_lite_awready_s2mm = 1'b0;
 assign s_axi_lite_wready_s2mm  = 1'b0;
 assign s_axi_lite_bvalid_s2mm  = 1'b0;
@@ -471,24 +327,22 @@ assign m_axi_s2mm_awvalid = 1'b0;
 assign m_axi_s2mm_wvalid = 1'b0;
 assign m_axi_s2mm_bready = 1'b0;
 
-end
-endgenerate
-
 generate 
 if(C_INCLUDE_MM2S) begin: MM2S_INCLUDED
 
-wire mm2s_lite_resetn_sync;
+wire mm2s_lite_resetn_sync = s_axi_lite_aresetn;
 
-   stolen_cdc_async_rst #(
-       .DEST_SYNC_FF(2),
-       .INIT_SYNC_FF(0),
-       .RST_ACTIVE_HIGH(0)
-    )
-    stolen_cdc_async_mm2s_rst_inst (
-       .dest_arst(mm2s_lite_resetn_sync),
-       .dest_clk(m_axis_mm2s_aclk),
-       .src_arst(s_axi_lite_aresetn)
-    );
+  //  stolen_cdc_async_rst #(
+  //      .DEST_SYNC_FF(2),
+  //      .INIT_SYNC_FF(0),
+  //      .RST_ACTIVE_HIGH(0)
+  //   )
+  //   stolen_cdc_async_mm2s_rst_inst (
+  //      .dest_arst(mm2s_lite_resetn_sync),
+  //      .dest_clk(m_axis_mm2s_aclk),
+  //      .src_arst(s_axi_lite_aresetn)
+  //   );
+
   
 
 audio_formatter_v1_0_9_mm2s_top #(
@@ -587,7 +441,7 @@ endmodule
 `timescale 1ps / 1ps
 
 module audio_formatter_v1_0_9_reset #(
-	parameter C_ASYNC_CLOCK = 1
+	parameter C_ASYNC_CLOCK = 0
 ) 
 (
 input lite_clk,
@@ -1257,7 +1111,7 @@ audio_formatter_v1_0_9_mm2s_registers #(
 );
 
 audio_formatter_v1_0_9_reset #(
-	.C_ASYNC_CLOCK(C_MM2S_ASYNC_CLOCK)
+	.C_ASYNC_CLOCK('0)
 ) reset_mm2s 
 (
  .lite_clk(s_axi_lite_aclk),
@@ -2238,59 +2092,17 @@ audio_formatter_v1_0_9_mm2s_command_gen #(
 	.mm2s_cmd_tready(mm2s_cmd_ready)
 );
 
-axi_datamover
-   #(
-      .C_INCLUDE_MM2S              ( 1'b1         	),
-      .C_M_AXI_MM2S_ADDR_WIDTH     ( C_CMD_ADDR_WIDTH      ),
-      .C_M_AXI_MM2S_DATA_WIDTH     ( 32          ),
-      .C_M_AXIS_MM2S_TDATA_WIDTH   ( 32          ),
-      .C_INCLUDE_MM2S_STSFIFO      ( 1     		   ),
-      .C_MM2S_STSCMD_FIFO_DEPTH    ( 1	   ),
-      .C_MM2S_STSCMD_IS_ASYNC      ( 0   ),
-      .C_INCLUDE_MM2S_DRE          ( 0           ),
-      .C_MM2S_BURST_SIZE           ( 256   ),
-      .C_MM2S_BTT_USED             ( 23            ),
-      .C_MM2S_ADDR_PIPE_DEPTH      ( 4 ),
-      .C_MM2S_INCLUDE_SF           ( 0                      ),
-      .C_ENABLE_MM2S_TKEEP 	   (0) ,
-
- 
-      .C_FAMILY                    ( C_FAMILY 		     ),
-      .C_ENABLE_CACHE_USER         ( 0                       ),
-      .C_ENABLE_SKID_BUF           ( "11000"                 ),
-      .C_CMD_WIDTH                 ( 40+C_CMD_ADDR_WIDTH    ),
-
-      .C_INCLUDE_S2MM              ( 1'b0	   	     ),
-      .C_M_AXI_S2MM_ADDR_WIDTH     ( C_CMD_ADDR_WIDTH ),
-      .C_M_AXI_S2MM_DATA_WIDTH     ( 32      		),
-      .C_S_AXIS_S2MM_TDATA_WIDTH   ( 32      		),
-      .C_INCLUDE_S2MM_STSFIFO      ( 1     		),
-      .C_S2MM_STSCMD_FIFO_DEPTH    ( 1 			),
-      .C_S2MM_STSCMD_IS_ASYNC      ( 0      		),
-      .C_INCLUDE_S2MM_DRE          ( 0    		),
-      .C_S2MM_BURST_SIZE           ( 256   		),
-      .C_S2MM_BTT_USED             ( 23         	),
-      .C_S2MM_SUPPORT_INDET_BTT    ( 0      		),
-      .C_S2MM_ADDR_PIPE_DEPTH      ( 4			),
-      .C_S2MM_INCLUDE_SF           ( 0                  ),
-      .C_ENABLE_S2MM_TKEEP  	   ( 0 			)
-    ) I_DATAMOVER_MM2S 
+axi_datamover I_DATAMOVER_MM2S 
   (
       // MM2S Primary Clock / Reset input
-      .m_axi_mm2s_aclk             (mm2s_clk),
-      .m_axi_mm2s_aresetn          (mm2s_resetn),
+      .aclk             (mm2s_clk),
+      .aresetn          (mm2s_resetn),
 
       // MM2S Soft Shutdown
-      .mm2s_halt                   (halt_dm          ),
-      .mm2s_halt_cmplt             (halt_complete_dm ),
-
-      // MM2S Error output discrete
-      .mm2s_err                    (           ),
+      .halt_dm                     (halt_dm          ),
+      .halt_complete_dm            (halt_complete_dm ),
 
       // Memory Map to Stream Command FIFO and Status FIFO Async CLK/RST //////////////
-      .m_axis_mm2s_cmdsts_aclk     (mm2s_clk                 ),
-      .m_axis_mm2s_cmdsts_aresetn  (mm2s_resetn            ),
-
       // User Command Interface Ports (AXI Stream)
       .s_axis_mm2s_cmd_tvalid      (mm2s_cmd_valid    ),
       .s_axis_mm2s_cmd_tready      (mm2s_cmd_ready    ),
@@ -2300,16 +2112,7 @@ axi_datamover
       .m_axis_mm2s_sts_tvalid      (mm2s_status_valid    ),
       .m_axis_mm2s_sts_tready      (mm2s_status_ready    ),
       .m_axis_mm2s_sts_tdata       (mm2s_status    ),
-      .m_axis_mm2s_sts_tkeep       (    ),
-      .m_axis_mm2s_sts_tlast       (    ),
 
-   
-      // Address Posting contols
-      .mm2s_allow_addr_req         (1'b1   ),
-      .mm2s_addr_req_posted        (  ),
-      .mm2s_rd_xfer_cmplt          (  ),
-      
-   
       // MM2S AXI Address Channel I/O  //////////////////////////////////////
    //   m_axi_mm2s_arid             (                     ),
       .m_axi_mm2s_araddr           (m_axi_mm2s_araddr_temp         ),
@@ -2331,14 +2134,8 @@ axi_datamover
 
       // MM2S AXI Master Stream Channel I/O  ////////////////////////////////
       .m_axis_mm2s_tdata           (s_axis_tdata_dm       ),
-      .m_axis_mm2s_tkeep           (       ),
-      .m_axis_mm2s_tlast           (), //s_axis_tlast,
       .m_axis_mm2s_tvalid          (s_axis_tvalid_dm      ),
-      .m_axis_mm2s_tready          (s_axis_tready_dm      ),
-
-      // Testing Support I/O
-      .mm2s_dbg_sel                (4'd0        ),
-      .mm2s_dbg_data               ()
+      .m_axis_mm2s_tready          (s_axis_tready_dm      )
     );
 
 
@@ -3076,14 +2873,14 @@ always@(posedge axis_clk) begin
     else begin
         start_command_r <= start_command;
         if(!start_dma_r && start_dma) begin
-		start_command	<= 1'b1;
-	end
-	else if(mm2s_status_valid) begin
-		start_command  <= 1'b0;
-	end
+          start_command	<= 1'b1;
+        end
+        else if(mm2s_status_valid) begin
+          start_command  <= 1'b0;
+        end
         else if(data_ready) begin
-		start_command	<= 1'b1;
-	end
+          start_command	<= 1'b1;
+        end
     end
 end
 
@@ -3159,15 +2956,15 @@ begin
     end
     else begin
         if(!start_dma_r && start_dma) begin
-		start_command_generation	<= 1'b1;
-	end
-	//else if(cmd_valid && cmd_ready && (channel == no_of_valid_channels -1'b1)) begin
-	else if((~start_command) && data_ready) begin
-		start_command_generation	<= 1'b1;
-	end
-	else begin
-		start_command_generation	<= 1'b0;
-	end
+          start_command_generation	<= 1'b1;
+        end
+        //else if(cmd_valid && cmd_ready && (channel == no_of_valid_channels -1'b1)) begin
+        else if((~start_command) && data_ready) begin
+          start_command_generation	<= 1'b1;
+        end
+        else begin
+          start_command_generation	<= 1'b0;
+        end
     end
 end
 
