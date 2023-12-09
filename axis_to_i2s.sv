@@ -225,7 +225,7 @@ end
 (*mark_debug="true"*) wire [31:0] i2s_dat;
 cdc_fifo_gray # (
     .WIDTH(32),
-    .LOG_DEPTH(3),
+    .LOG_DEPTH(2),
     .SYNC_STAGES(2)
   )
   cdc_fifo_gray_inst (

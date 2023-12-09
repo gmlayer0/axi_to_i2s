@@ -1,6 +1,6 @@
 `timescale 1ps / 1ps
 
-module stolen_audio_formatter_v1_0_9 #(
+module stolen_audio_formatter #(
 	parameter C_FAMILY = "artix7",
 
 	parameter integer C_INCLUDE_S2MM = 1 , //0,1
@@ -2737,14 +2737,12 @@ stolen_fifo_sync #(
    )
    interleaved_stolen_fifo_buffer (
       .almost_empty(),   
-      .almost_full(full),     
-      .dbiterr(),             
+      .almost_full(full),
       //.empty(fifo_empty),                 
       .empty(),                 
       .full(),                   
       .overflow(),           
-      .rd_rst_busy(),     
-      .sbiterr(),             
+      .rd_rst_busy(),
       .underflow(),         
       .wr_rst_busy(rst_bsy),            
 
