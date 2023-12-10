@@ -2500,7 +2500,7 @@ end
 */
 genvar i;
 
-generate if (C_PACKAGING_MODE_MM2S == 0)
+generate if (C_PACKAGING_MODE_MM2S == 0) // WE ARE HERE
 begin: INTERLEAVED
 //localparam FIFO_DEPTH = 16;
 localparam FIFO_DEPTH = (C_NUM_CHANNELS == 6) ? (128) : (C_NUM_CHANNELS << 4);
@@ -2516,7 +2516,7 @@ wire fifo_empty;
 
 assign data_ready = fifo_empty;
 
-stolen_fifo_sync #(
+stolen_fifo_sync #( // WE ARE HERE
       .FIFO_WRITE_DEPTH(FIFO_DEPTH),   // DECIMAL
       .PROG_EMPTY_THRESH(FIFO_DEPTH >> 2),    // DECIMAL
       .PROG_FULL_THRESH(FIFO_DEPTH >> 1),     // DECIMAL
@@ -2892,9 +2892,10 @@ end
 									    (pcm_data_width == 'd1) ? (16) :  (32)) : 
 									   (32); //32 bytes */
 
-assign bytes_per_transaction =  (C_DATAFORMAT == 3 || C_DATAFORMAT == 2) ? ((pcm_data_width == 'd0) ? (no_of_valid_channels << 3) :
-									    (pcm_data_width == 'd1) ? (no_of_valid_channels << 4) :  (no_of_valid_channels << 5)) : 
-									   (no_of_valid_channels << 5); //32 bytes per channel
+assign bytes_per_transaction =  (C_DATAFORMAT == 3 || C_DATAFORMAT == 2) ? (
+  (pcm_data_width == 'd0) ? (no_of_valid_channels << 3) :
+	(pcm_data_width == 'd1) ? (no_of_valid_channels << 4) :
+  (no_of_valid_channels << 5)) : (no_of_valid_channels << 5); //32 bytes per channel
 
 assign next_address = ((byte_count == 0) && (period_count == no_of_periods)) ? buffer_start_address : (current_address + bytes_per_transaction);
 

@@ -1,5 +1,6 @@
-module axi_datamover 
-  (
+module axi_datamover  #(
+    parameter ADDR_WIDTH = 64
+  )(
       // MM2S Primary Clock / Reset input
       input aclk,
       (*mark_debug="true"*) input aresetn,
@@ -12,15 +13,15 @@ module axi_datamover
       // User Command Interface Ports (AXI Stream)
       (*mark_debug="true"*) input  s_axis_mm2s_cmd_tvalid,
       (*mark_debug="true"*) output s_axis_mm2s_cmd_tready,
-      input [40+32-1:0] s_axis_mm2s_cmd_tdata,
+      input [40+ADDR_WIDTH-1:0] s_axis_mm2s_cmd_tdata,
 
       // User Status Interface Ports (AXI Stream)
-      (*mark_debug="true"*) output reg m_axis_mm2s_sts_tvalid,
+      (*mark_debug="true"*) output m_axis_mm2s_sts_tvalid,
       (*mark_debug="true"*) input  m_axis_mm2s_sts_tready,
-      (*mark_debug="true"*) output [7:0] m_axis_mm2s_sts_tdata,
+      (*mark_debug="true"*) output reg [7:0] m_axis_mm2s_sts_tdata,
 
       // MM2S AXI Address Channel I/O  //////////////////////////////////////
-      (*mark_debug="true"*) output reg [31:0] m_axi_mm2s_araddr,
+      (*mark_debug="true"*) output reg [ADDR_WIDTH-1:0] m_axi_mm2s_araddr,
       (*mark_debug="true"*) output reg  [7:0] m_axi_mm2s_arlen,
       output  [2:0] m_axi_mm2s_arsize,
       output  [1:0] m_axi_mm2s_arburst,
@@ -57,8 +58,6 @@ module axi_datamover
     assign m_axi_mm2s_arcache = '0;
     assign m_axi_mm2s_aruser  = '0;
     assign s_axis_mm2s_cmd_tready = ~busy_q && r_fifo_ready_q && !sft_reseting;
-    assign m_axis_mm2s_sts_tdata[7:4] = '0;
-    assign m_axis_mm2s_sts_tdata[3:0] = tag_q[3:0];
     assign m_axis_mm2s_sts_tvalid = finish_q && busy_q && !sft_reseting;
     always_ff @(posedge aclk) begin
         if(~aresetn) begin
@@ -83,10 +82,11 @@ module axi_datamover
         end
     end
     always_ff @(posedge aclk) begin
+        m_axis_mm2s_sts_tdata[7:4] <= '0;
         if(s_axis_mm2s_cmd_tvalid && s_axis_mm2s_cmd_tready) begin
-            m_axi_mm2s_araddr <= s_axis_mm2s_cmd_tdata[63:32];
+            m_axi_mm2s_araddr <= s_axis_mm2s_cmd_tdata[31+ADDR_WIDTH:32];
             m_axi_mm2s_arlen <= s_axis_mm2s_cmd_tdata[10:2] - 8'd1;
-            tag_q <= s_axis_mm2s_cmd_tdata[67:64];
+            m_axis_mm2s_sts_tdata[3:0] <= s_axis_mm2s_cmd_tdata[35+ADDR_WIDTH:32+ADDR_WIDTH];
         end
     end
 
@@ -113,7 +113,7 @@ module axi_datamover
     assign m_axi_mm2s_rready  = ~fifo_full;
     assign m_axis_mm2s_tvalid = ~fifo_empty;
     fifo_v3 #(
-        .DATA_WIDTH  (32  ),
+        .DATA_WIDTH  (16  ),
         .DEPTH       (32  ),
         .FALL_THROUGH(1'b0)
       ) r_beats_queue (
@@ -129,7 +129,7 @@ module axi_datamover
         .empty_o   (fifo_empty        ),
         .usage_o   (fifo_usage        )
       );
-    assign r_fifo_ready = fifo_usage <= 5'd16 || fifo_empty;
+    assign r_fifo_ready = fifo_usage <= 5'd8 || fifo_empty;
 
     // SOFT RESET LOGIC
     always_ff @(posedge aclk) begin
@@ -140,7 +140,7 @@ module axi_datamover
             if(halt_dm) begin
                 sft_reseting <= '1;
                 halt_complete_dm <= '0;
-            end else begin
+            end else if(sft_reseting) begin
                 if(~busy_q) begin // deassert situation
                     sft_reseting <= '0;
                     halt_complete_dm <= '1;
