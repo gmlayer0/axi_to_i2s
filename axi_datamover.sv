@@ -1,3 +1,6 @@
+// Authors:
+// - Wang Zhe <gmlayer0@outlook.com>
+
 module axi_datamover  #(
     parameter ADDR_WIDTH = 64
   )(
@@ -109,12 +112,12 @@ module axi_datamover  #(
     // 64Byte per transaction
     // Totally size == 128Byte(32Words), ready for next transaction when FIFO SPACE == 64Byte.
     wire fifo_full, fifo_empty;
-    wire [4:0] fifo_usage;
+    wire [3:0] fifo_usage;
     assign m_axi_mm2s_rready  = ~fifo_full;
     assign m_axis_mm2s_tvalid = ~fifo_empty;
     fifo_v3 #(
-        .DATA_WIDTH  (16  ),
-        .DEPTH       (32  ),
+        .DATA_WIDTH  (32  ),
+        .DEPTH       (16  ),
         .FALL_THROUGH(1'b0)
       ) r_beats_queue (
         .clk_i     (aclk              ),
@@ -129,7 +132,7 @@ module axi_datamover  #(
         .empty_o   (fifo_empty        ),
         .usage_o   (fifo_usage        )
       );
-    assign r_fifo_ready = fifo_usage <= 5'd8 || fifo_empty;
+    assign r_fifo_ready = fifo_usage <= 4'd2 || fifo_empty;
 
     // SOFT RESET LOGIC
     always_ff @(posedge aclk) begin

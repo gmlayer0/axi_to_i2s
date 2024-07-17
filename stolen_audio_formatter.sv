@@ -1414,7 +1414,7 @@ begin
 end
 */
 assign err_irq = err_irq_en && (mm2s_slave_error || mm2s_decode_error);
-assign Irq_mm2s = ioc_irq || err_irq; // || (timeout_err && timeout_irq_en);
+assign Irq_mm2s = (ioc_irq && ioc_irq_en) || err_irq; // || (timeout_err && timeout_irq_en);
 
 // Input Capture
 reg [191:0] aes_channel_status;

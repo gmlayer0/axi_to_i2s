@@ -202,7 +202,7 @@ module xil_audio_formatter
         .m_axi_mm2s_rready(m_axi_mm2s_rready),
         .m_axi_mm2s_rresp(m_axi_mm2s_rresp),
         .m_axi_mm2s_rvalid(m_axi_mm2s_rvalid),
-        .m_axi_s2mm_awaddr(NLW_inst_m_axi_s2mm_awaddr_UNCONNECTED[63:0]),
+        .m_axi_s2mm_awaddr(NLW_inst_m_axi_s2mm_awaddr_UNCONNECTED[31:0]),
         .m_axi_s2mm_awburst(NLW_inst_m_axi_s2mm_awburst_UNCONNECTED[1:0]),
         .m_axi_s2mm_awcache(NLW_inst_m_axi_s2mm_awcache_UNCONNECTED[3:0]),
         .m_axi_s2mm_awlen(NLW_inst_m_axi_s2mm_awlen_UNCONNECTED[7:0]),

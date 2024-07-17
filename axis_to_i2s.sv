@@ -1,3 +1,6 @@
+// Authors:
+// - Wang Zhe <gmlayer0@outlook.com>
+
 module axi2_to_i2s (
   input  wire        s_axi_ctrl_aclk   ,
   input  wire        s_axi_ctrl_aresetn,

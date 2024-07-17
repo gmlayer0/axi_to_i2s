@@ -1,3 +1,6 @@
+// Authors:
+// - Wang Zhe <gmlayer0@outlook.com>
+
 module i2s_gen(
     input  wire        aud_clk_i , // 22.5792Mhz for 44.1khz || 24.576mhz for 48khz
     input  wire        aud_rst_i ,
